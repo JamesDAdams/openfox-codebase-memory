@@ -1,0 +1,44 @@
+{
+  "name": "openfox-codebase-memory",
+  "version": "1.0.0",
+  "description": "Codebase Memory MCP plugin for OpenFox with graph visualization, automated sync and project management",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist",
+    "assets",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "openfox": {
+    "apiVersion": 2,
+    "displayName": "Codebase Memory",
+    "description": "Structural code knowledge graph with codebase-memory-mcp integration, visualization and live synchronization",
+    "entry": "./dist/index.js",
+    "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"18\" cy=\"6\" r=\"3\"/><circle cx=\"12\" cy=\"18\" r=\"3\"/><path d=\"M8.5 7.5L15.5 7.5M7.5 8.5L10.5 15.5M16.5 8.5L13.5 15.5\"/></svg>",
+    "capabilities": [
+      "settings",
+      "tools",
+      "rpc",
+      "ui",
+      "hooks",
+      "assets"
+    ],
+    "author": "James Adams",
+    "timeoutMs": 15000
+  },
+  "peerDependencies": {
+    "openfox": ">=2.0.0 <3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
+  }
+}

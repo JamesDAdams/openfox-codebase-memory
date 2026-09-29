@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codebase Memory — Graph</title>
+    <script>
+      (function() {
+        const origin = 'http://127.0.0.1:9749';
+        const pluginId = 'openfox-codebase-memory';
+        const proxyPrefix = window.location.origin + '/api/plugins/' + encodeURIComponent(pluginId) + '/proxy?url=';
+        function toProxy(u) {
+          if (!u || typeof u !== 'string') return u;
+          if (u.startsWith('/api/plugins/')) return u;
+          if (u.startsWith('/api/') || u.startsWith('/rpc') || u.startsWith('/assets/')) {
+            return proxyPrefix + encodeURIComponent(origin + u);
+          }
+          if (u.startsWith(origin)) return proxyPrefix + encodeURIComponent(u);
+          return u;
+        }
+        const _fetch = window.fetch;
+        window.fetch = function(input, init) {
+          if (typeof input === 'string') {
+            input = toProxy(input);
+          } else if (input && typeof input.url === 'string') {
+            input = new Request(toProxy(input.url), input);
+          }
+          return _fetch.call(this, input, init);
+        };
+        const _open = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(m, url, ...args) {
+          return _open.call(this, m, typeof url === 'string' ? toProxy(url) : url, ...args);
+        };
+      })();
+    </script>
+    <script type="module" crossorigin src="/api/plugins/openfox-codebase-memory/assets/assets/index-D-K5gNgQ.js"></script>
+    <link rel="stylesheet" crossorigin href="/api/plugins/openfox-codebase-memory/assets/assets/index-e0GBPCTE.css">
+  </head>
+  <body class="bg-[#0a0a10] text-[#e4e4ed] min-h-screen">
+    <div id="root"></div>
+  </body>
+</html>
