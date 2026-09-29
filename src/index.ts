@@ -932,6 +932,9 @@ export async function updateAllUi(
   const effectiveWorkdir = activeWorkdirContext || runtimeWorkdir || ''
   const effectiveProjectName = activeProjectNameContext || runtimeProjectName
 
+  // Check installation on OS
+  const installationStatus = await client.checkInstallation()
+
   // Fetch projects (use cached if available, unless forced or empty)
   let projects = cachedProjects
   if (forceRefreshProjects || projects.length === 0) {
@@ -1002,7 +1005,7 @@ export async function updateAllUi(
   context.logger.info(`ALL OPENFOX PROJECTS COUNT: ${allOpenFoxProjects.length}`)
   publishModalContent(context, modalContent)
 
-  return { indexed, projects, modalContent }
+  return { indexed, projects, modalContent, installationStatus }
 }
 
 export async function register(registry: PluginRegistry): Promise<void> {
@@ -1026,6 +1029,37 @@ export async function register(registry: PluginRegistry): Promise<void> {
       fr: 'Configurer l’intégration Codebase Memory MCP et l’affichage dans le header.',
     },
     fields: [
+      {
+        key: 'cbmStatus',
+        type: 'status',
+        label: {
+          en: 'Installation Status',
+          fr: 'Statut de l’installation',
+        },
+        description: {
+          en: 'Checks if codebase-memory-mcp binary is installed on your OS.',
+          fr: 'Vérifie si le binaire codebase-memory-mcp est installé sur votre système.',
+        },
+        rpcMethod: 'cbm.checkInstallationStatus',
+      },
+      {
+        key: 'cbmInstall',
+        type: 'button',
+        label: {
+          en: 'Install Codebase Memory',
+          fr: 'Installer Codebase Memory',
+        },
+        buttonLabel: {
+          en: 'Install / Update on OS',
+          fr: 'Installer / Mettre à jour sur l’OS',
+        },
+        buttonVariant: 'primary',
+        description: {
+          en: 'Download and run official codebase-memory-mcp installer for your OS.',
+          fr: 'Télécharger et exécuter le script officiel d’installation codebase-memory-mcp pour votre OS.',
+        },
+        rpcMethod: 'cbm.installBinary',
+      },
       {
         key: 'showHeaderButton',
         label: {
@@ -1323,7 +1357,73 @@ export async function register(registry: PluginRegistry): Promise<void> {
   registry.registerRpc('cbm.getStatus', async (params?: Record<string, unknown>) => {
     const workdir = (typeof params?.['workdir'] === 'string' && params['workdir']) || process.cwd()
     const { indexed, project } = await client.isProjectIndexed(workdir)
-    return { indexed, project, workdir }
+    const installationStatus = await client.checkInstallation()
+    return { indexed, project, workdir, installationStatus }
+  })
+
+  registry.registerRpc('cbm.checkInstallationStatus', async () => {
+    const status = await client.checkInstallation()
+    if (status.installed) {
+      return {
+        installed: true,
+        statusTone: 'success',
+        statusText: {
+          en: status.version ? `Installed (v${status.version})` : 'Installed on OS',
+          fr: status.version ? `Installé (v${status.version})` : 'Installé sur l’OS',
+        },
+      }
+    }
+    return {
+      installed: false,
+      statusTone: 'danger',
+      statusText: {
+        en: 'Not installed on OS',
+        fr: 'Non installé sur l’OS',
+      },
+    }
+  })
+
+  registry.registerRpc('cbm.installBinary', async (params?: Record<string, unknown>) => {
+    const { workdir: rawWorkdir, projectName } = await resolveProjectContext(params)
+
+    publishModalLoading(context, {
+      en: 'Installing codebase-memory-mcp on your system...',
+      fr: 'Installation de codebase-memory-mcp sur votre système...',
+    })
+    context.notify({
+      title: { en: 'Installing Codebase Memory...', fr: 'Installation de Codebase Memory...' },
+      body: {
+        en: 'Running official installer script for your OS...',
+        fr: 'Exécution du script d’installation officiel pour votre OS...',
+      },
+      level: 'info',
+    })
+
+    const res = await client.installCodebaseMemory()
+    if (res.success) {
+      cachedProjects = []
+      cachedIndexedStatus.clear()
+      context.notify({
+        title: { en: 'Installation complete', fr: 'Installation terminée' },
+        body: {
+          en: 'codebase-memory-mcp was installed. Restart OpenFox so the new PATH is picked up.',
+          fr: 'codebase-memory-mcp a été installé. Redémarrez OpenFox pour prendre en compte le nouveau PATH.',
+        },
+        level: 'success',
+      })
+    } else {
+      context.notify({
+        title: { en: 'Installation failed', fr: 'Échec de l’installation' },
+        body: {
+          en: res.error || 'Failed to install codebase-memory-mcp',
+          fr: res.error || 'Échec de l’installation de codebase-memory-mcp',
+        },
+        level: 'error',
+      })
+    }
+
+    await updateAllUi(context, currentIframeProject, rawWorkdir, projectName, currentPendingDeleteProject, true, undefined)
+    return res
   })
 
   // Hook on session start to auto-index if enabled

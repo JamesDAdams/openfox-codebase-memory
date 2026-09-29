@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { execFile, exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import path from 'node:path'
 import os from 'node:os'
@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
+const execAsync = promisify(exec)
 
 function getDatabaseConstructor() {
   try {
@@ -31,7 +32,7 @@ function getDatabaseConstructor() {
   }
   return null
 }
-import type { CbmProject } from './types.js'
+import type { CbmProject, CbmInstallationStatus } from './types.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -310,6 +311,104 @@ export class CodebaseMemoryClient {
       return res
     } catch (err: any) {
       return { error: err.message || String(err) }
+    }
+  }
+
+  async checkInstallation(): Promise<CbmInstallationStatus> {
+    const isWindows = process.platform === 'win32'
+    const commandToTest = this.command || 'codebase-memory-mcp'
+
+    // 1. Check direct execution with --version
+    try {
+      const { stdout } = await execFileAsync(commandToTest, ['--version'], { timeout: 5000 })
+      const versionMatch = stdout.match(/codebase-memory-mcp\s+([^\s\n\r]+)/i) || stdout.match(/([0-9]+\.[0-9]+\.[0-9]+[^\s\n\r]*)/)
+      const version = versionMatch ? versionMatch[1] : stdout.trim()
+      return {
+        installed: true,
+        version: version || undefined,
+        path: commandToTest,
+      }
+    } catch {
+      // Direct command might not be in the current process PATH, check standard fallback paths
+    }
+
+    const home = os.homedir()
+    const candidatePaths = isWindows
+      ? [
+          path.join(home, 'AppData', 'Local', 'Programs', 'codebase-memory-mcp', 'codebase-memory-mcp.exe'),
+          path.join(home, '.local', 'bin', 'codebase-memory-mcp.exe'),
+          path.join(home, 'bin', 'codebase-memory-mcp.exe'),
+        ]
+      : [
+          path.join(home, '.local', 'bin', 'codebase-memory-mcp'),
+          path.join(home, 'bin', 'codebase-memory-mcp'),
+          '/usr/local/bin/codebase-memory-mcp',
+          '/opt/homebrew/bin/codebase-memory-mcp',
+          '/usr/bin/codebase-memory-mcp',
+        ]
+
+    for (const binPath of candidatePaths) {
+      try {
+        if (fs.existsSync(binPath)) {
+          const { stdout } = await execFileAsync(binPath, ['--version'], { timeout: 5000 })
+          const versionMatch = stdout.match(/codebase-memory-mcp\s+([^\s\n\r]+)/i) || stdout.match(/([0-9]+\.[0-9]+\.[0-9]+[^\s\n\r]*)/)
+          const version = versionMatch ? versionMatch[1] : stdout.trim()
+          this.setCommand(binPath)
+          return {
+            installed: true,
+            version: version || undefined,
+            path: binPath,
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    // 2. Try which/where
+    try {
+      const { stdout } = await execFileAsync(isWindows ? 'where' : 'which', [commandToTest], {
+        timeout: 5000,
+      })
+      const resolvedPath = stdout.split('\n')[0]?.trim()
+      if (resolvedPath && fs.existsSync(resolvedPath)) {
+        return {
+          installed: true,
+          path: resolvedPath,
+        }
+      }
+    } catch {
+      // not found
+    }
+
+    return {
+      installed: false,
+    }
+  }
+
+  async installCodebaseMemory(): Promise<{ success: boolean; error?: string; output?: string }> {
+    const isWindows = process.platform === 'win32'
+    try {
+      let stdout = ''
+      let stderr = ''
+      if (isWindows) {
+        const psCmd = `powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.ps1 -OutFile install.ps1; Unblock-File .\\install.ps1; .\\install.ps1"`
+        const res = await execAsync(psCmd, { timeout: 180000 })
+        stdout = res.stdout
+        stderr = res.stderr
+      } else {
+        const bashCmd = `curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash`
+        const res = await execAsync(bashCmd, { timeout: 180000 })
+        stdout = res.stdout
+        stderr = res.stderr
+      }
+
+      // execAsync rejects on a non-zero exit code, so reaching this point means
+      // the installer succeeded. Its PATH updates only apply to future shells,
+      // so re-probing here would report a false negative.
+      return { success: true, output: stdout || stderr }
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) }
     }
   }
 }

@@ -2,6 +2,12 @@ interface LocalizedString {
     en: string;
     fr: string;
 }
+interface CbmInstallationStatus {
+    installed: boolean;
+    version?: string;
+    path?: string;
+    error?: string;
+}
 interface CbmProject {
     name: string;
     rootPath: string;
@@ -71,6 +77,12 @@ declare class CodebaseMemoryClient {
         error?: string;
     }>;
     getIndexStatus(projectName: string): Promise<any>;
+    checkInstallation(): Promise<CbmInstallationStatus>;
+    installCodebaseMemory(): Promise<{
+        success: boolean;
+        error?: string;
+        output?: string;
+    }>;
 }
 
 declare function getClient(): CodebaseMemoryClient;
@@ -221,6 +233,7 @@ declare function updateAllUi(context: PluginContext, activeIframeProject?: strin
         className: string;
         children: any[];
     };
+    installationStatus: CbmInstallationStatus;
 }>;
 declare function register(registry: PluginRegistry): Promise<void>;
 

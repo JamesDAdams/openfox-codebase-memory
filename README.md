@@ -1,6 +1,6 @@
 # openfox-codebase-memory
 
-OpenFox plugin for [codebase-memory-mcp](https://github.com/JamesDAdams/codebase-memory-mcp) integration, featuring interactive structural knowledge graph visualization, auto-synchronization, and project management.
+OpenFox plugin for [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) integration, featuring interactive structural knowledge graph visualization, auto-synchronization, and project management.
 
 ## Features
 

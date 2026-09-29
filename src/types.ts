@@ -3,6 +3,13 @@ export interface LocalizedString {
   fr: string
 }
 
+export interface CbmInstallationStatus {
+  installed: boolean
+  version?: string
+  path?: string
+  error?: string
+}
+
 export interface CbmProject {
   name: string
   rootPath: string

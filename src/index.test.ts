@@ -55,7 +55,15 @@ describe('openfox-codebase-memory plugin', () => {
   it('registers settings, panel, actions and rpc methods', async () => {
     await register(mockRegistry)
 
-    expect(mockRegistry.registerSettings).toHaveBeenCalled()
+    expect(mockRegistry.registerSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fields: expect.arrayContaining([
+          expect.objectContaining({ key: 'cbmStatus', type: 'status' }),
+          expect.objectContaining({ key: 'cbmInstall', type: 'button' }),
+          expect.objectContaining({ key: 'showHeaderButton', type: 'boolean' }),
+        ]),
+      }),
+    )
     expect(mockRegistry.registerUiPanel).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'cbm-modal',
@@ -73,6 +81,8 @@ describe('openfox-codebase-memory plugin', () => {
     expect(mockRegistry.registerRpc).toHaveBeenCalledWith('cbm.indexProject', expect.any(Function))
     expect(mockRegistry.registerRpc).toHaveBeenCalledWith('cbm.forceSync', expect.any(Function))
     expect(mockRegistry.registerRpc).toHaveBeenCalledWith('cbm.toggleAutoIndex', expect.any(Function))
+    expect(mockRegistry.registerRpc).toHaveBeenCalledWith('cbm.checkInstallationStatus', expect.any(Function))
+    expect(mockRegistry.registerRpc).toHaveBeenCalledWith('cbm.installBinary', expect.any(Function))
   })
 
   it('builds header component based on showHeader setting and sync status', () => {
@@ -230,7 +240,7 @@ describe('openfox-codebase-memory plugin', () => {
       openFoxProjects,
     )
 
-    // Section 3 is OpenFox Projects
+    // Section 4 is OpenFox Projects
     const unsyncedSection = modalWithUnsynced.children[3]
     expect(unsyncedSection).toBeDefined()
     expect(unsyncedSection.children[0].text.en).toBe('OpenFox Projects')
@@ -497,5 +507,62 @@ describe('openfox-codebase-memory plugin', () => {
 
     expect(result.content.type).toBe('button')
     expect(result.content.icon).toContain('#22c55e')
+  })
+
+  it('does not render the OS installation status card in the modal', () => {
+    const modal = buildModalContent(
+      [],
+      '/tmp/repo1',
+      false,
+      undefined,
+      true,
+      undefined,
+      9749,
+      false,
+      'repo1',
+      undefined,
+      undefined,
+      [],
+    )
+
+    const serialized = JSON.stringify(modal)
+    expect(serialized).not.toContain('OS Installation Status')
+    expect(serialized).not.toContain('Reinstall / Update')
+    expect(serialized).not.toContain('cbm.installBinary')
+
+    // Auto-index card is now the second child
+    expect(modal.children[1].children[0].type).toBe('stack')
+  })
+
+  it('handles cbm.checkInstallationStatus and cbm.installBinary RPCs', async () => {
+    const handlers = new Map<string, (params?: Record<string, unknown>) => Promise<unknown>>()
+    mockRegistry.registerRpc = vi.fn((method: string, handler: (params?: Record<string, unknown>) => Promise<unknown>) => {
+      handlers.set(method, handler)
+    }) as unknown as PluginRegistry['registerRpc']
+
+    vi.spyOn(getClient(), 'checkInstallation').mockResolvedValue({
+      installed: true,
+      version: '0.11.0',
+    })
+    vi.spyOn(getClient(), 'installCodebaseMemory').mockResolvedValue({
+      success: true,
+    })
+
+    await register(mockRegistry)
+
+    const checkResult = await handlers.get('cbm.checkInstallationStatus')!()
+    expect(checkResult).toEqual({
+      installed: true,
+      statusTone: 'success',
+      statusText: { en: 'Installed (v0.11.0)', fr: 'Installé (v0.11.0)' },
+    })
+
+    const installResult = (await handlers.get('cbm.installBinary')!({})) as { success: boolean }
+    expect(installResult.success).toBe(true)
+    expect(mockContext.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.objectContaining({ en: 'Installation complete' }),
+      }),
+    )
   })
 })

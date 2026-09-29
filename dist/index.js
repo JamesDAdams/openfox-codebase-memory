@@ -5,13 +5,14 @@ import fs2 from "fs";
 import { createRequire as createRequire2 } from "module";
 
 // src/client.ts
-import { execFile } from "child_process";
+import { execFile, exec } from "child_process";
 import { promisify } from "util";
 import path from "path";
 import os from "os";
 import fs from "fs";
 import { createRequire } from "module";
 var require2 = createRequire(import.meta.url);
+var execAsync = promisify(exec);
 function getDatabaseConstructor() {
   try {
     return require2("better-sqlite3");
@@ -277,6 +278,86 @@ var CodebaseMemoryClient = class {
       return res;
     } catch (err) {
       return { error: err.message || String(err) };
+    }
+  }
+  async checkInstallation() {
+    const isWindows = process.platform === "win32";
+    const commandToTest = this.command || "codebase-memory-mcp";
+    try {
+      const { stdout } = await execFileAsync(commandToTest, ["--version"], { timeout: 5e3 });
+      const versionMatch = stdout.match(/codebase-memory-mcp\s+([^\s\n\r]+)/i) || stdout.match(/([0-9]+\.[0-9]+\.[0-9]+[^\s\n\r]*)/);
+      const version = versionMatch ? versionMatch[1] : stdout.trim();
+      return {
+        installed: true,
+        version: version || void 0,
+        path: commandToTest
+      };
+    } catch {
+    }
+    const home = os.homedir();
+    const candidatePaths = isWindows ? [
+      path.join(home, "AppData", "Local", "Programs", "codebase-memory-mcp", "codebase-memory-mcp.exe"),
+      path.join(home, ".local", "bin", "codebase-memory-mcp.exe"),
+      path.join(home, "bin", "codebase-memory-mcp.exe")
+    ] : [
+      path.join(home, ".local", "bin", "codebase-memory-mcp"),
+      path.join(home, "bin", "codebase-memory-mcp"),
+      "/usr/local/bin/codebase-memory-mcp",
+      "/opt/homebrew/bin/codebase-memory-mcp",
+      "/usr/bin/codebase-memory-mcp"
+    ];
+    for (const binPath of candidatePaths) {
+      try {
+        if (fs.existsSync(binPath)) {
+          const { stdout } = await execFileAsync(binPath, ["--version"], { timeout: 5e3 });
+          const versionMatch = stdout.match(/codebase-memory-mcp\s+([^\s\n\r]+)/i) || stdout.match(/([0-9]+\.[0-9]+\.[0-9]+[^\s\n\r]*)/);
+          const version = versionMatch ? versionMatch[1] : stdout.trim();
+          this.setCommand(binPath);
+          return {
+            installed: true,
+            version: version || void 0,
+            path: binPath
+          };
+        }
+      } catch {
+      }
+    }
+    try {
+      const { stdout } = await execFileAsync(isWindows ? "where" : "which", [commandToTest], {
+        timeout: 5e3
+      });
+      const resolvedPath = stdout.split("\n")[0]?.trim();
+      if (resolvedPath && fs.existsSync(resolvedPath)) {
+        return {
+          installed: true,
+          path: resolvedPath
+        };
+      }
+    } catch {
+    }
+    return {
+      installed: false
+    };
+  }
+  async installCodebaseMemory() {
+    const isWindows = process.platform === "win32";
+    try {
+      let stdout = "";
+      let stderr = "";
+      if (isWindows) {
+        const psCmd = `powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.ps1 -OutFile install.ps1; Unblock-File .\\install.ps1; .\\install.ps1"`;
+        const res = await execAsync(psCmd, { timeout: 18e4 });
+        stdout = res.stdout;
+        stderr = res.stderr;
+      } else {
+        const bashCmd = `curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash`;
+        const res = await execAsync(bashCmd, { timeout: 18e4 });
+        stdout = res.stdout;
+        stderr = res.stderr;
+      }
+      return { success: true, output: stdout || stderr };
+    } catch (err) {
+      return { success: false, error: err.message || String(err) };
     }
   }
 };
@@ -1083,6 +1164,7 @@ async function updateAllUi(context, activeIframeProject, runtimeWorkdir, runtime
   if (runtimeProjectName) activeProjectNameContext = runtimeProjectName;
   const effectiveWorkdir = activeWorkdirContext || runtimeWorkdir || "";
   const effectiveProjectName = activeProjectNameContext || runtimeProjectName;
+  const installationStatus = await client.checkInstallation();
   let projects = cachedProjects;
   if (forceRefreshProjects || projects.length === 0) {
     projects = await client.listProjects(false);
@@ -1140,7 +1222,7 @@ async function updateAllUi(context, activeIframeProject, runtimeWorkdir, runtime
   );
   context.logger.info(`ALL OPENFOX PROJECTS COUNT: ${allOpenFoxProjects.length}`);
   publishModalContent(context, modalContent);
-  return { indexed, projects, modalContent };
+  return { indexed, projects, modalContent, installationStatus };
 }
 async function register(registry) {
   const context = registry.context;
@@ -1159,6 +1241,37 @@ async function register(registry) {
       fr: "Configurer l\u2019int\xE9gration Codebase Memory MCP et l\u2019affichage dans le header."
     },
     fields: [
+      {
+        key: "cbmStatus",
+        type: "status",
+        label: {
+          en: "Installation Status",
+          fr: "Statut de l\u2019installation"
+        },
+        description: {
+          en: "Checks if codebase-memory-mcp binary is installed on your OS.",
+          fr: "V\xE9rifie si le binaire codebase-memory-mcp est install\xE9 sur votre syst\xE8me."
+        },
+        rpcMethod: "cbm.checkInstallationStatus"
+      },
+      {
+        key: "cbmInstall",
+        type: "button",
+        label: {
+          en: "Install Codebase Memory",
+          fr: "Installer Codebase Memory"
+        },
+        buttonLabel: {
+          en: "Install / Update on OS",
+          fr: "Installer / Mettre \xE0 jour sur l\u2019OS"
+        },
+        buttonVariant: "primary",
+        description: {
+          en: "Download and run official codebase-memory-mcp installer for your OS.",
+          fr: "T\xE9l\xE9charger et ex\xE9cuter le script officiel d\u2019installation codebase-memory-mcp pour votre OS."
+        },
+        rpcMethod: "cbm.installBinary"
+      },
       {
         key: "showHeaderButton",
         label: {
@@ -1413,7 +1526,68 @@ async function register(registry) {
   registry.registerRpc("cbm.getStatus", async (params) => {
     const workdir = typeof params?.["workdir"] === "string" && params["workdir"] || process.cwd();
     const { indexed, project } = await client.isProjectIndexed(workdir);
-    return { indexed, project, workdir };
+    const installationStatus = await client.checkInstallation();
+    return { indexed, project, workdir, installationStatus };
+  });
+  registry.registerRpc("cbm.checkInstallationStatus", async () => {
+    const status = await client.checkInstallation();
+    if (status.installed) {
+      return {
+        installed: true,
+        statusTone: "success",
+        statusText: {
+          en: status.version ? `Installed (v${status.version})` : "Installed on OS",
+          fr: status.version ? `Install\xE9 (v${status.version})` : "Install\xE9 sur l\u2019OS"
+        }
+      };
+    }
+    return {
+      installed: false,
+      statusTone: "danger",
+      statusText: {
+        en: "Not installed on OS",
+        fr: "Non install\xE9 sur l\u2019OS"
+      }
+    };
+  });
+  registry.registerRpc("cbm.installBinary", async (params) => {
+    const { workdir: rawWorkdir, projectName } = await resolveProjectContext(params);
+    publishModalLoading(context, {
+      en: "Installing codebase-memory-mcp on your system...",
+      fr: "Installation de codebase-memory-mcp sur votre syst\xE8me..."
+    });
+    context.notify({
+      title: { en: "Installing Codebase Memory...", fr: "Installation de Codebase Memory..." },
+      body: {
+        en: "Running official installer script for your OS...",
+        fr: "Ex\xE9cution du script d\u2019installation officiel pour votre OS..."
+      },
+      level: "info"
+    });
+    const res = await client.installCodebaseMemory();
+    if (res.success) {
+      cachedProjects = [];
+      cachedIndexedStatus.clear();
+      context.notify({
+        title: { en: "Installation complete", fr: "Installation termin\xE9e" },
+        body: {
+          en: "codebase-memory-mcp was installed. Restart OpenFox so the new PATH is picked up.",
+          fr: "codebase-memory-mcp a \xE9t\xE9 install\xE9. Red\xE9marrez OpenFox pour prendre en compte le nouveau PATH."
+        },
+        level: "success"
+      });
+    } else {
+      context.notify({
+        title: { en: "Installation failed", fr: "\xC9chec de l\u2019installation" },
+        body: {
+          en: res.error || "Failed to install codebase-memory-mcp",
+          fr: res.error || "\xC9chec de l\u2019installation de codebase-memory-mcp"
+        },
+        level: "error"
+      });
+    }
+    await updateAllUi(context, currentIframeProject, rawWorkdir, projectName, currentPendingDeleteProject, true, void 0);
+    return res;
   });
   if (typeof registry.registerHook === "function") {
     registry.registerHook("session.started", async (payload) => {
