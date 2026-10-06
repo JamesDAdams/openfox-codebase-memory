@@ -379,15 +379,15 @@ describe('openfox-codebase-memory plugin', () => {
   })
 
   it('does not duplicate synced projects in OpenFox projects list even with different path variations', () => {
-    const projects = [{ name: 'discord-rag', rootPath: '/Users/Renaud.Lefevre/Documents/Dev/Perso/discord-rag' }]
+    const projects = [{ name: 'discord-rag', rootPath: '/Users/developer/Documents/Dev/Perso/discord-rag' }]
     const openFoxProjects = [
-      { id: '1', name: 'discord-rag', workdir: '/Users/Renaud.Lefevre/Documents/Dev/Perso/openfox/discord-rag' },
-      { id: '2', name: 'super-arr', workdir: '/Users/Renaud.Lefevre/Documents/Dev/Perso/super-arr' },
+      { id: '1', name: 'discord-rag', workdir: '/Users/developer/Documents/Dev/Perso/openfox/discord-rag' },
+      { id: '2', name: 'super-arr', workdir: '/Users/developer/Documents/Dev/Perso/super-arr' },
     ]
 
     const modal = buildModalContent(
       projects,
-      '/Users/Renaud.Lefevre/Documents/Dev/Perso/openfox/discord-rag',
+      '/Users/developer/Documents/Dev/Perso/openfox/discord-rag',
       true,
       projects[0],
       true,
@@ -443,11 +443,11 @@ describe('openfox-codebase-memory plugin', () => {
     }) as unknown as PluginRegistry['registerRpc']
 
     vi.spyOn(getClient(), 'listProjects').mockResolvedValue([
-      { name: 'Users-Renaud.Lefevre-Documents-Dev-Perso-discord-rag', rootPath: '/Users/Renaud.Lefevre/Documents/Dev/Perso/discord-rag' },
+      { name: 'Users-developer-Documents-Dev-Perso-discord-rag', rootPath: '/Users/developer/Documents/Dev/Perso/discord-rag' },
     ])
     vi.spyOn(getClient(), 'isProjectIndexed').mockImplementation(async (workdir?: string, projectName?: string) => {
       if (projectName === 'discord-rag' || (workdir && workdir.includes('discord-rag'))) {
-        return { indexed: true, project: { name: 'discord-rag', rootPath: '/Users/Renaud.Lefevre/Documents/Dev/Perso/discord-rag' } }
+        return { indexed: true, project: { name: 'discord-rag', rootPath: '/Users/developer/Documents/Dev/Perso/discord-rag' } }
       }
       return { indexed: false }
     })
@@ -455,7 +455,7 @@ describe('openfox-codebase-memory plugin', () => {
     await register(mockRegistry)
 
     const result = (await handlers.get('cbm.getComposerTop')!({
-      workdir: '/Users/Renaud.Lefevre/Documents/Dev/Perso/openfox/discord-rag',
+      workdir: '/Users/developer/Documents/Dev/Perso/openfox/discord-rag',
       projectName: 'discord-rag',
     })) as { content: any }
 

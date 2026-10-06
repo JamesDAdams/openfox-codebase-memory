@@ -20,8 +20,7 @@ function getDatabaseConstructor() {
     try {
       const parentPaths = [
         path.join(process.cwd(), "node_modules/better-sqlite3"),
-        path.join(os.homedir(), "Library/Application Support/openfox-dev/node_modules/better-sqlite3"),
-        "/Users/Renaud.Lefevre/Documents/Dev/Perso/openfox/node_modules/better-sqlite3"
+        path.join(os.homedir(), "Library/Application Support/openfox-dev/node_modules/better-sqlite3")
       ];
       for (const p of parentPaths) {
         try {
@@ -371,8 +370,7 @@ function getHostDatabaseConstructor() {
     try {
       const parentPaths = [
         path2.join(process.cwd(), "node_modules/better-sqlite3"),
-        path2.join(os2.homedir(), "Library/Application Support/openfox-dev/node_modules/better-sqlite3"),
-        "/Users/Renaud.Lefevre/Documents/Dev/Perso/openfox/node_modules/better-sqlite3"
+        path2.join(os2.homedir(), "Library/Application Support/openfox-dev/node_modules/better-sqlite3")
       ];
       for (const p of parentPaths) {
         try {

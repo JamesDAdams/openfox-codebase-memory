@@ -1,6 +1,6 @@
 {
   "name": "openfox-codebase-memory",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Codebase Memory MCP plugin for OpenFox with graph visualization, automated sync and project management",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

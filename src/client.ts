@@ -17,7 +17,6 @@ function getDatabaseConstructor() {
       const parentPaths = [
         path.join(process.cwd(), 'node_modules/better-sqlite3'),
         path.join(os.homedir(), 'Library/Application Support/openfox-dev/node_modules/better-sqlite3'),
-        '/Users/Renaud.Lefevre/Documents/Dev/Perso/openfox/node_modules/better-sqlite3',
       ]
       for (const p of parentPaths) {
         try {
